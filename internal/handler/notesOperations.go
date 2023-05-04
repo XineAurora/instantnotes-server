@@ -18,7 +18,12 @@ func (h *Handler) CreateNote(c *gin.Context) {
 		GroupID  uint
 	}
 
-	c.Bind(&body)
+	err := c.Bind(&body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "failed to read body",
+		})
+	}
 	var fid, gid *uint
 	if body.FolderID == 0 {
 		fid = nil
@@ -35,7 +40,7 @@ func (h *Handler) CreateNote(c *gin.Context) {
 
 	res := h.DB.Create(&note)
 	if res.Error != nil {
-		c.Status(http.StatusBadRequest)
+		c.Status(http.StatusInternalServerError)
 		return
 	}
 	//Return it
@@ -51,7 +56,12 @@ func (h *Handler) ReadNote(c *gin.Context) {
 		UserId uint
 	}
 
-	c.Bind(&body)
+	err := c.Bind(&body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "failed to read body",
+		})
+	}
 
 	var note models.Note
 	res := h.DB.First(&note, id)
@@ -76,7 +86,12 @@ func (h *Handler) UpdateNote(c *gin.Context) {
 		GroupID  uint
 	}
 
-	c.Bind(&body)
+	err := c.Bind(&body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "failed to read body",
+		})
+	}
 	var fid, gid *uint
 	if body.FolderID == 0 {
 		fid = nil

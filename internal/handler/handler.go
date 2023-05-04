@@ -30,12 +30,19 @@ func New() *Handler {
 
 	h := &Handler{Router: router, DB: db}
 
+	// TODO: Add middleware to check if user own note or have premissions
 	noteManipulation := router.Group("/api")
 	{
-		noteManipulation.POST("/notes", h.CreateNote)
-		noteManipulation.GET("/notes/:id", h.ReadNote)
-		noteManipulation.PUT("/notes/:id", h.UpdateNote)
-		noteManipulation.DELETE("/notes/:id", h.DeleteNote)
+		noteManipulation.POST("/notes", h.RequireAuth, h.CreateNote)
+		noteManipulation.GET("/notes/:id", h.RequireAuth, h.ReadNote)
+		noteManipulation.PUT("/notes/:id", h.RequireAuth, h.UpdateNote)
+		noteManipulation.DELETE("/notes/:id", h.RequireAuth, h.DeleteNote)
+	}
+
+	auth := router.Group("/auth")
+	{
+		auth.POST("/signup", h.SignUp)
+		auth.POST("/signin", h.SignIn)
 	}
 	return h
 }
