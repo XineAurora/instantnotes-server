@@ -77,8 +77,8 @@ func (h *Handler) SignIn(c *gin.Context) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user":      user.ID,
-		"expiraton": time.Now().Add(time.Hour * 24 * 7).Unix(),
+		"user":       user.ID,
+		"expiration": time.Now().Add(time.Hour * 24 * 7).Unix(),
 	})
 
 	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))
@@ -113,7 +113,7 @@ func (h *Handler) RequireAuth(c *gin.Context) {
 	})
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		if time.Now().Unix() >= claims["expiration"].(int64) {
+		if float64(time.Now().Unix()) >= claims["expiration"].(float64) {
 			c.AbortWithStatus(http.StatusUnauthorized)
 		}
 
