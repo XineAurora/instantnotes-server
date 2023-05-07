@@ -34,9 +34,9 @@ func New() *Handler {
 	noteManipulation := router.Group("/api")
 	{
 		noteManipulation.POST("/notes", h.RequireAuth, h.CreateNote)
-		noteManipulation.GET("/notes/:id", h.RequireAuth, h.ReadNote)
-		noteManipulation.PUT("/notes/:id", h.RequireAuth, h.UpdateNote)
-		noteManipulation.DELETE("/notes/:id", h.RequireAuth, h.DeleteNote)
+		noteManipulation.GET("/notes/:id", h.RequireAuth, h.RequirePremisson, h.ReadNote)
+		noteManipulation.PUT("/notes/:id", h.RequireAuth, h.RequirePremisson, h.UpdateNote)
+		noteManipulation.DELETE("/notes/:id", h.RequireAuth, h.RequirePremisson, h.DeleteNote)
 	}
 
 	auth := router.Group("/auth")

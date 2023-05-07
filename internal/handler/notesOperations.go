@@ -13,7 +13,6 @@ func (h *Handler) CreateNote(c *gin.Context) {
 	var body struct {
 		Title    string
 		Content  string
-		UserID   uint
 		FolderID uint
 		GroupID  uint
 	}
@@ -23,6 +22,7 @@ func (h *Handler) CreateNote(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "failed to read body",
 		})
+		return
 	}
 	var fid, gid *uint
 	if body.FolderID == 0 {
@@ -35,8 +35,15 @@ func (h *Handler) CreateNote(c *gin.Context) {
 	} else {
 		gid = &body.GroupID
 	}
+
+	user, exist := c.Get("user")
+	if !exist {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "internal error",
+		})
+	}
 	//Create a note
-	note := models.Note{Title: body.Title, Content: body.Content, UserID: body.UserID, FolderID: fid, GroupID: gid}
+	note := models.Note{Title: body.Title, Content: body.Content, UserID: user.(models.User).ID, FolderID: fid, GroupID: gid}
 
 	res := h.DB.Create(&note)
 	if res.Error != nil {
@@ -51,17 +58,6 @@ func (h *Handler) CreateNote(c *gin.Context) {
 
 func (h *Handler) ReadNote(c *gin.Context) {
 	id := c.Param("id")
-	//TODO add user verification
-	var body struct {
-		UserId uint
-	}
-
-	err := c.Bind(&body)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "failed to read body",
-		})
-	}
 
 	var note models.Note
 	res := h.DB.First(&note, id)
@@ -81,7 +77,6 @@ func (h *Handler) UpdateNote(c *gin.Context) {
 	var body struct {
 		Title    string
 		Content  string
-		UserID   uint
 		FolderID uint
 		GroupID  uint
 	}
@@ -111,7 +106,7 @@ func (h *Handler) UpdateNote(c *gin.Context) {
 		return
 	}
 	//Update a note
-	h.DB.Model(&note).Updates(models.Note{Title: body.Title, Content: body.Content, UserID: body.UserID, FolderID: fid, GroupID: gid})
+	h.DB.Model(&note).Updates(models.Note{Title: body.Title, Content: body.Content, FolderID: fid, GroupID: gid})
 	if res.Error != nil {
 		c.Status(http.StatusBadRequest)
 		return
@@ -131,4 +126,29 @@ func (h *Handler) DeleteNote(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusOK)
+}
+
+func (h *Handler) RequirePremisson(c *gin.Context) {
+	//get authorized user
+	id := c.Param("id")
+	currentUser, exist := c.Get("user")
+	if !exist {
+		c.AbortWithStatus(http.StatusInternalServerError)
+	}
+
+	//get note
+	var note models.Note
+	res := h.DB.First(&note, id)
+	if res.Error != nil {
+		c.AbortWithStatus(http.StatusBadRequest)
+	}
+
+	//check if user is owner or in group
+	if note.UserID != currentUser.(models.User).ID {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "no premissions",
+		})
+	}
+
+	c.Next()
 }
