@@ -44,5 +44,14 @@ func New() *Handler {
 		auth.POST("/signup", h.SignUp)
 		auth.POST("/signin", h.SignIn)
 	}
+
+	folderManipulation := router.Group("/folder")
+	{
+		folderManipulation.POST("/", h.RequireAuth, h.CreateFolder)
+		folderManipulation.GET("/:id", h.RequireAuth, h.RequireFolderPremisson, h.ReadFolder)
+		folderManipulation.GET("/content/:id", h.RequireAuth, h.RequireFolderPremisson, h.ReadFolderContent)
+		folderManipulation.PUT("/:id", h.RequireAuth, h.RequireFolderPremisson, h.UpdateFolder)
+		folderManipulation.DELETE("/:id", h.RequireAuth, h.RequireFolderPremisson, h.DeleteFolder)
+	}
 	return h
 }

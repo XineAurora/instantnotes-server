@@ -30,4 +30,5 @@ func main() {
 	db.AutoMigrate(&models.GroupMember{})
 	db.AutoMigrate(&models.Note{})
 	db.AutoMigrate(&models.Folder{})
+	db.AutoMigrate(&models.FoldersLink{})
 }

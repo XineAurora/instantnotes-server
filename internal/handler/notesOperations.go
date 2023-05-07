@@ -78,7 +78,6 @@ func (h *Handler) UpdateNote(c *gin.Context) {
 		Title    string
 		Content  string
 		FolderID uint
-		GroupID  uint
 	}
 
 	err := c.Bind(&body)
@@ -87,16 +86,11 @@ func (h *Handler) UpdateNote(c *gin.Context) {
 			"error": "failed to read body",
 		})
 	}
-	var fid, gid *uint
+	var fid *uint
 	if body.FolderID == 0 {
 		fid = nil
 	} else {
 		fid = &body.FolderID
-	}
-	if body.GroupID == 0 {
-		gid = nil
-	} else {
-		gid = &body.GroupID
 	}
 	//Find a note
 	var note models.Note
@@ -106,7 +100,7 @@ func (h *Handler) UpdateNote(c *gin.Context) {
 		return
 	}
 	//Update a note
-	h.DB.Model(&note).Updates(models.Note{Title: body.Title, Content: body.Content, FolderID: fid, GroupID: gid})
+	res = h.DB.Model(&note).Updates(models.Note{Title: body.Title, Content: body.Content, FolderID: fid})
 	if res.Error != nil {
 		c.Status(http.StatusBadRequest)
 		return
