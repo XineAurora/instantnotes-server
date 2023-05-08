@@ -7,6 +7,7 @@ import (
 
 	"github.com/XineAurora/instantnotes-server/internal/models"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func (h *Handler) CreateFolder(c *gin.Context) {
@@ -113,7 +114,7 @@ func (h *Handler) DeleteFolder(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{})
 	}
 
-	err = h.deleteFolderContent(uint(folderID), user.(models.User).ID)
+	err = deleteFolderContent(uint(folderID), user.(models.User).ID, res)
 	if err != nil {
 		res.Rollback()
 		c.Status(http.StatusInternalServerError)
@@ -141,7 +142,7 @@ func (h *Handler) ReadFolderContent(c *gin.Context) {
 		return
 	}
 
-	notes, folders, err := h.getFolderContent(uint(folderID), user.(models.User).ID)
+	notes, folders, err := getFolderContent(uint(folderID), user.(models.User).ID, h.DB)
 	if err != nil {
 		c.Status(http.StatusInternalServerError)
 		return
@@ -152,15 +153,17 @@ func (h *Handler) ReadFolderContent(c *gin.Context) {
 	})
 }
 
-func (h *Handler) getFolderContent(folderID uint, userID uint) ([]models.Note, []models.Folder, error) {
+func getFolderContent(folderID uint, userID uint, tx *gorm.DB) ([]models.Note, []models.Folder, error) {
 	var notes []models.Note
 	var folders []models.Folder
-	res := h.DB.Where("folder_id=?", folderID).Find(&notes)
+	//find notes
+	res := tx.Where("folder_id=?", folderID).Find(&notes)
 	if res.Error != nil {
 		return nil, nil, errors.New("db error")
 	}
+	//find inner folders
 	if folderID == 0 {
-		res = h.DB.Table("folders").
+		res = tx.Table("folders").
 			Joins("LEFT JOIN folder_links ON folder_links.child_folder_id = folders.id").
 			Where("folders.user_id = ?", userID).
 			Where("NOT EXISTS (SELECT 1 FROM folder_links fl WHERE fl.child_folder_id = folders.id)").
@@ -170,7 +173,7 @@ func (h *Handler) getFolderContent(folderID uint, userID uint) ([]models.Note, [
 			return nil, nil, errors.New("db error")
 		}
 	} else {
-		res = h.DB.Table("folders").
+		res = tx.Table("folders").
 			Joins("JOIN folder_links ON folder_links.child_folder_id = folders.id").
 			Where("folder_links.parent_folder_id = ?", folderID).
 			Find(&folders)
@@ -181,23 +184,23 @@ func (h *Handler) getFolderContent(folderID uint, userID uint) ([]models.Note, [
 	return notes, folders, nil
 }
 
-func (h *Handler) deleteFolderContent(folderID uint, userID uint) error {
-	notes, folders, err := h.getFolderContent(folderID, userID)
+func deleteFolderContent(folderID uint, userID uint, tx *gorm.DB) error {
+	notes, folders, err := getFolderContent(folderID, userID, tx)
 	if err != nil {
 		return err
 	}
 	for _, note := range notes {
-		if res := h.DB.Delete(&note); res.Error != nil {
+		if res := tx.Delete(&note); res.Error != nil {
 			return res.Error
 		}
 	}
 	for _, folder := range folders {
-		err = h.deleteFolderContent(folder.ID, userID)
+		err = deleteFolderContent(folder.ID, userID, tx)
 		if err != nil {
 			return err
 		}
 	}
-	if res := h.DB.Delete(&models.Folder{ID: folderID}); res.Error != nil {
+	if res := tx.Delete(&models.Folder{ID: folderID}); res.Error != nil {
 		return res.Error
 	}
 	return nil
@@ -211,7 +214,7 @@ func (h *Handler) RequireFolderPremisson(c *gin.Context) {
 		c.AbortWithStatus(http.StatusInternalServerError)
 	}
 
-	//get note
+	//get folder
 	var folder models.Folder
 	res := h.DB.First(&folder, id)
 	if res.Error != nil {

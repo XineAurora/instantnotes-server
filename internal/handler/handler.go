@@ -53,5 +53,15 @@ func New() *Handler {
 		folderManipulation.PUT("/:id", h.RequireAuth, h.RequireFolderPremisson, h.UpdateFolder)
 		folderManipulation.DELETE("/:id", h.RequireAuth, h.RequireFolderPremisson, h.DeleteFolder)
 	}
+
+	groupManipulation := router.Group("/group")
+	{
+		groupManipulation.POST("/", h.RequireAuth, h.CreateGroup)
+		groupManipulation.GET("/members/:id", h.RequireAuth, h.RequireMembership, h.GetGroupMembers)
+		groupManipulation.POST("/member/:id", h.RequireAuth, h.RequireGroupOwn, h.AddGroupMember)
+		groupManipulation.DELETE("/member/:id", h.RequireAuth, h.RequireGroupOwnOrSelf, h.AddGroupMember)
+		groupManipulation.PUT("/:id", h.RequireAuth, h.RequireGroupOwn, h.UpdateGroup)
+		groupManipulation.DELETE("/:id", h.RequireAuth, h.RequireGroupOwn, h.DeleteGroup)
+	}
 	return h
 }
