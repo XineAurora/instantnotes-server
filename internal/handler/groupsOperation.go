@@ -15,28 +15,30 @@ func (h *Handler) CreateGroup(c *gin.Context) {
 	var body struct {
 		Name string
 	}
+	err := c.Bind(&body)
+	if err != nil {
+		c.Status(http.StatusBadRequest)
+		return
+	}
 	// get user info
 	user, exist := c.Get("user")
 	if !exist {
-		c.Status(http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{})
 		return
 	}
 	// create the group
-	tx := h.DB.Begin()
-	group := models.Group{Name: body.Name, OwnerID: user.(models.User).ID, User: user.(models.User)}
-	tx = tx.Create(&group)
-	if tx.Error != nil {
-		c.Status(http.StatusInternalServerError)
-		tx.Rollback()
+	group := models.Group{Name: body.Name, OwnerID: user.(models.User).ID}
+	res := h.DB.Create(&group)
+	if res.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{})
 		return
 	}
-	tx = tx.Create(&models.GroupMember{GroupID: group.ID, Group: group, UserID: user.(models.User).ID, User: user.(models.User)})
-	if tx.Error != nil {
-		c.Status(http.StatusInternalServerError)
-		tx.Rollback()
+	res = h.DB.Create(&models.GroupMember{GroupID: group.ID, Group: group, UserID: user.(models.User).ID})
+	if res.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"err": 3, "id": group.ID})
 		return
 	}
-	tx.Commit()
+
 	//return it
 	c.JSON(http.StatusOK, gin.H{
 		"group": group,
@@ -54,7 +56,7 @@ func (h *Handler) GetGroupMembers(c *gin.Context) {
 	//get all group members
 	var users []models.User
 	res := h.DB.Table("users").
-		Select("users.id, users.username, users.email").
+		Select("users.id, users.name, users.email").
 		Joins("INNER JOIN group_members ON users.id = group_members.user_id").
 		Where("group_members.group_id = ?", id).
 		Scan(&users)
@@ -78,7 +80,7 @@ func (h *Handler) AddGroupMember(c *gin.Context) {
 	}
 
 	var body struct {
-		email string
+		Email string
 	}
 
 	err = c.Bind(&body)
@@ -88,7 +90,7 @@ func (h *Handler) AddGroupMember(c *gin.Context) {
 	}
 	//find user in DB
 	var user models.User
-	res := h.DB.First(&user, "email=?", body.email)
+	res := h.DB.First(&user, "email=?", body.Email)
 	if res.Error != nil {
 		c.Status(http.StatusBadRequest)
 		return
@@ -113,7 +115,7 @@ func (h *Handler) RemoveGroupMember(c *gin.Context) {
 	}
 
 	var body struct {
-		userID uint
+		UserID uint
 	}
 	err = c.Bind(&body)
 	if err != nil {
@@ -124,7 +126,7 @@ func (h *Handler) RemoveGroupMember(c *gin.Context) {
 	//check if user in group
 	var count int64
 	res := h.DB.Table("group_members").
-		Where("user_id = ? AND group_id = ?", body.userID, groupID).
+		Where("user_id = ? AND group_id = ?", body.UserID, groupID).
 		Count(&count)
 	if res.Error != nil {
 		c.Status(http.StatusBadRequest)
@@ -135,7 +137,7 @@ func (h *Handler) RemoveGroupMember(c *gin.Context) {
 		c.Status(http.StatusBadRequest)
 	}
 	//remove user from group
-	res = h.DB.Delete(&models.GroupMember{GroupID: uint(groupID), UserID: body.userID})
+	res = h.DB.Where("group_id = ? AND user_id = ?", groupID, body.UserID).Delete(&models.GroupMember{})
 	if res.Error != nil {
 		c.Status(http.StatusInternalServerError)
 		return
@@ -180,6 +182,7 @@ func (h *Handler) UpdateGroup(c *gin.Context) {
 }
 
 func (h *Handler) DeleteGroup(c *gin.Context) {
+	//TODO: change DATABASE SCHEMA FOR CASCADE DELETING ALL DATA
 	//should delete group and all folders and notes
 	//get groupId from param
 	groupId, err := strconv.Atoi(c.Param("id"))

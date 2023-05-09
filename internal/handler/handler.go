@@ -59,7 +59,7 @@ func New() *Handler {
 		groupManipulation.POST("/", h.RequireAuth, h.CreateGroup)
 		groupManipulation.GET("/members/:id", h.RequireAuth, h.RequireMembership, h.GetGroupMembers)
 		groupManipulation.POST("/member/:id", h.RequireAuth, h.RequireGroupOwn, h.AddGroupMember)
-		groupManipulation.DELETE("/member/:id", h.RequireAuth, h.RequireGroupOwnOrSelf, h.AddGroupMember)
+		groupManipulation.DELETE("/member/:id", h.RequireAuth, h.RequireGroupOwnOrSelf, h.RemoveGroupMember)
 		groupManipulation.PUT("/:id", h.RequireAuth, h.RequireGroupOwn, h.UpdateGroup)
 		groupManipulation.DELETE("/:id", h.RequireAuth, h.RequireGroupOwn, h.DeleteGroup)
 	}
