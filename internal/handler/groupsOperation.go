@@ -334,7 +334,7 @@ func deleteGroupContent(groupID uint, tx *gorm.DB) error {
 		}
 	}
 	for _, folder := range folders {
-		err = deleteFolderContent(folder.ID, 0, tx)
+		err = deleteFolderContent(folder.ID, 0, tx.Session(&gorm.Session{NewDB: true}))
 		if err != nil {
 			return err
 		}

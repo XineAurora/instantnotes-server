@@ -1,6 +1,6 @@
 package models
 
-type FoldersLink struct {
+type FolderLink struct {
 	ParentFolderID uint   `gorm:"not null"`
 	ParentFolder   Folder `gorm:"foreignKey:ParentFolderID"`
 	ChildFolderID  uint   `gorm:"not null"`

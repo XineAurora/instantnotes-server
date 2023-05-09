@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -12,6 +13,7 @@ import (
 
 func (h *Handler) CreateFolder(c *gin.Context) {
 	//get request body
+	//TODO: Add parent param
 	var body struct {
 		Name    string
 		GroupID uint
@@ -95,6 +97,8 @@ func (h *Handler) UpdateFolder(c *gin.Context) {
 }
 
 func (h *Handler) DeleteFolder(c *gin.Context) {
+	// DONT WORK AT ALL NEED TO CHANGE TABLE FOR CASCADE DELETE
+
 	//delete folder and all information it contains
 	id := c.Param("id")
 	folderID, err := strconv.Atoi(id)
@@ -108,20 +112,24 @@ func (h *Handler) DeleteFolder(c *gin.Context) {
 		return
 	}
 
-	res := h.DB.Begin()
-	if res.Error != nil {
-		res.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{})
-	}
+	// res := h.DB.Begin()
+	// if res.Error != nil {
+	// 	res.Rollback()
+	// 	c.JSON(http.StatusInternalServerError, gin.H{})
+	// }
 
-	err = deleteFolderContent(uint(folderID), user.(models.User).ID, res)
+	err = deleteFolderContent(uint(folderID), user.(models.User).ID, h.DB.Session(&gorm.Session{NewDB: true}))
 	if err != nil {
-		res.Rollback()
 		c.Status(http.StatusInternalServerError)
 		return
-	} else {
-		res.Commit()
 	}
+	// if err != nil {
+	// 	res.Rollback()
+	// 	c.Status(http.StatusInternalServerError)
+	// 	return
+	// } else {
+	// 	res.Commit()
+	// }
 
 	c.Status(http.StatusOK)
 }
@@ -142,7 +150,7 @@ func (h *Handler) ReadFolderContent(c *gin.Context) {
 		return
 	}
 
-	notes, folders, err := getFolderContent(uint(folderID), user.(models.User).ID, h.DB)
+	notes, folders, err := getFolderContent(uint(folderID), user.(models.User).ID, h.DB.Session(&gorm.Session{NewDB: true}))
 	if err != nil {
 		c.Status(http.StatusInternalServerError)
 		return
@@ -156,28 +164,32 @@ func (h *Handler) ReadFolderContent(c *gin.Context) {
 func getFolderContent(folderID uint, userID uint, tx *gorm.DB) ([]models.Note, []models.Folder, error) {
 	var notes []models.Note
 	var folders []models.Folder
-	//find notes
-	res := tx.Where("folder_id=?", folderID).Find(&notes)
-	if res.Error != nil {
-		return nil, nil, errors.New("db error")
-	}
-	//find inner folders
+
 	if folderID == 0 {
-		res = tx.Table("folders").
+		//find notes
+		if tx.Where("folder_id IS NULL AND user_id = ?", userID).Find(&notes).Error != nil {
+			return nil, nil, errors.New("db error")
+		}
+		//find inner folders
+		if tx.Table("folders").
 			Joins("LEFT JOIN folder_links ON folder_links.child_folder_id = folders.id").
 			Where("folders.user_id = ?", userID).
 			Where("NOT EXISTS (SELECT 1 FROM folder_links fl WHERE fl.child_folder_id = folders.id)").
 			Where("folder_links.parent_folder_id IS NULL").
-			Find(&folders)
-		if res.Error != nil {
+			Find(&folders).
+			Error != nil {
 			return nil, nil, errors.New("db error")
 		}
 	} else {
-		res = tx.Table("folders").
+		//find notes
+		if tx.Where("folder_id=?", folderID).Find(&notes).Error != nil {
+			return nil, nil, errors.New("db error")
+		}
+		//find inner folders
+		if tx.Table("folders").
 			Joins("JOIN folder_links ON folder_links.child_folder_id = folders.id").
 			Where("folder_links.parent_folder_id = ?", folderID).
-			Find(&folders)
-		if res.Error != nil {
+			Find(&folders).Error != nil {
 			return nil, nil, errors.New("db error")
 		}
 	}
@@ -190,9 +202,10 @@ func deleteFolderContent(folderID uint, userID uint, tx *gorm.DB) error {
 		return err
 	}
 	for _, note := range notes {
-		if res := tx.Delete(&note); res.Error != nil {
-			return res.Error
+		if tx.Delete(&note).Error != nil {
+			return tx.Error
 		}
+		fmt.Println(note)
 	}
 	for _, folder := range folders {
 		err = deleteFolderContent(folder.ID, userID, tx)
@@ -200,8 +213,8 @@ func deleteFolderContent(folderID uint, userID uint, tx *gorm.DB) error {
 			return err
 		}
 	}
-	if res := tx.Delete(&models.Folder{ID: folderID}); res.Error != nil {
-		return res.Error
+	if tx := tx.Delete(&models.Folder{ID: folderID}); tx.Error != nil {
+		return tx.Error
 	}
 	return nil
 }
@@ -212,6 +225,11 @@ func (h *Handler) RequireFolderPremisson(c *gin.Context) {
 	currentUser, exist := c.Get("user")
 	if !exist {
 		c.AbortWithStatus(http.StatusInternalServerError)
+	}
+
+	if id == "0" {
+		c.Next()
+		return
 	}
 
 	//get folder
