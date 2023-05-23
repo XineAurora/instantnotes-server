@@ -2,7 +2,6 @@ package handler
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -97,40 +96,14 @@ func (h *Handler) UpdateFolder(c *gin.Context) {
 }
 
 func (h *Handler) DeleteFolder(c *gin.Context) {
-	// DONT WORK AT ALL NEED TO CHANGE TABLE FOR CASCADE DELETE
-
 	//delete folder and all information it contains
 	id := c.Param("id")
-	folderID, err := strconv.Atoi(id)
-	if err != nil {
+
+	res := h.DB.Delete(&models.Folder{}, id)
+	if res.Error != nil {
 		c.Status(http.StatusBadRequest)
 		return
 	}
-	user, exist := c.Get("user")
-	if !exist {
-		c.Status(http.StatusInternalServerError)
-		return
-	}
-
-	// res := h.DB.Begin()
-	// if res.Error != nil {
-	// 	res.Rollback()
-	// 	c.JSON(http.StatusInternalServerError, gin.H{})
-	// }
-
-	err = deleteFolderContent(uint(folderID), user.(models.User).ID, h.DB.Session(&gorm.Session{NewDB: true}))
-	if err != nil {
-		c.Status(http.StatusInternalServerError)
-		return
-	}
-	// if err != nil {
-	// 	res.Rollback()
-	// 	c.Status(http.StatusInternalServerError)
-	// 	return
-	// } else {
-	// 	res.Commit()
-	// }
-
 	c.Status(http.StatusOK)
 }
 
@@ -194,29 +167,6 @@ func getFolderContent(folderID uint, userID uint, tx *gorm.DB) ([]models.Note, [
 		}
 	}
 	return notes, folders, nil
-}
-
-func deleteFolderContent(folderID uint, userID uint, tx *gorm.DB) error {
-	notes, folders, err := getFolderContent(folderID, userID, tx)
-	if err != nil {
-		return err
-	}
-	for _, note := range notes {
-		if tx.Delete(&note).Error != nil {
-			return tx.Error
-		}
-		fmt.Println(note)
-	}
-	for _, folder := range folders {
-		err = deleteFolderContent(folder.ID, userID, tx)
-		if err != nil {
-			return err
-		}
-	}
-	if tx := tx.Delete(&models.Folder{ID: folderID}); tx.Error != nil {
-		return tx.Error
-	}
-	return nil
 }
 
 func (h *Handler) RequireFolderPremisson(c *gin.Context) {

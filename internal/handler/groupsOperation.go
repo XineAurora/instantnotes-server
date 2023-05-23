@@ -1,13 +1,11 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/XineAurora/instantnotes-server/internal/models"
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 func (h *Handler) CreateGroup(c *gin.Context) {
@@ -182,45 +180,15 @@ func (h *Handler) UpdateGroup(c *gin.Context) {
 }
 
 func (h *Handler) DeleteGroup(c *gin.Context) {
-	//TODO: change DATABASE SCHEMA FOR CASCADE DELETING ALL DATA
 	//should delete group and all folders and notes
 	//get groupId from param
-	groupId, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
+	id := c.Param("id")
+
+	res := h.DB.Delete(&models.Group{}, id)
+	if res.Error != nil {
 		c.Status(http.StatusBadRequest)
 		return
 	}
-
-	//wipe all it's data (folders, notes, remove group members)
-	tx := h.DB.Begin()
-	if err != nil {
-		tx.Rollback()
-		c.Status(http.StatusInternalServerError)
-		return
-	}
-	//delete folders and notes
-	err = deleteGroupContent(uint(groupId), tx)
-	if err != nil {
-		tx.Rollback()
-		c.Status(http.StatusInternalServerError)
-		return
-	}
-	//delete members
-	tx.Where("group_id = ?", groupId).Delete(&models.GroupMember{})
-	if tx.Error != nil {
-		tx.Rollback()
-		c.Status(http.StatusInternalServerError)
-		return
-	}
-	//delete group itself
-	tx.Delete(&models.Group{ID: uint(groupId)})
-	if tx.Error != nil {
-		tx.Rollback()
-		c.Status(http.StatusInternalServerError)
-		return
-	}
-
-	tx.Commit()
 	c.Status(http.StatusOK)
 }
 
@@ -303,44 +271,4 @@ func (h *Handler) RequireMembership(c *gin.Context) {
 	}
 
 	c.Next()
-}
-
-func getGroupContent(groupID uint, tx *gorm.DB) ([]models.Note, []models.Folder, error) {
-	var notes []models.Note
-	var folders []models.Folder
-	//find notes
-	res := tx.Where("group_id = ? AND folder_id = NULL", groupID).Find(&notes)
-	if res.Error != nil {
-		return nil, nil, errors.New("db error")
-	}
-	//find inner folders
-	res = tx.Where("group_id = ? AND id NOT IN (?)", groupID,
-		tx.Table("folder_relations").
-			Select("child_folder_id").
-			Where("parent_folder_id IS NOT NULL")).Find(&folders)
-	if res.Error != nil {
-		return nil, nil, errors.New("db error")
-	}
-
-	return notes, folders, nil
-}
-
-func deleteGroupContent(groupID uint, tx *gorm.DB) error {
-	notes, folders, err := getGroupContent(groupID, tx)
-	if err != nil {
-		return err
-	}
-
-	for _, note := range notes {
-		if res := tx.Delete(&note); res.Error != nil {
-			return res.Error
-		}
-	}
-	for _, folder := range folders {
-		err = deleteFolderContent(folder.ID, 0, tx.Session(&gorm.Session{NewDB: true}))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
