@@ -1,8 +1,8 @@
 package models
 
 type Group struct {
-	ID      uint   `gorm:"primaryKey"`
-	Name    string `gorm:"size:255"`
-	OwnerID uint   `gorm:"not null"`
-	User    User   `gorm:"foreignKey:OwnerID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	ID      uint   `gorm:"primaryKey" json:"id"`
+	Name    string `gorm:"size:255" json:"name"`
+	OwnerID uint   `gorm:"not null" json:"ownerId"`
+	User    User   `gorm:"foreignKey:OwnerID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"-"`
 }
