@@ -91,14 +91,15 @@ func (h *Handler) SignIn(c *gin.Context) {
 		}
 	}
 
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("authToken", tokenString, int(time.Hour/time.Second)*24*7, "", "", false, true)
-	c.JSON(http.StatusOK, gin.H{})
+	c.JSON(http.StatusOK, gin.H{
+		"token": tokenString,
+	})
 }
 
 func (h *Handler) RequireAuth(c *gin.Context) {
-	tokenString, err := c.Cookie("authToken")
-	if err != nil {
+
+	tokenString := c.GetHeader("Authorization")
+	if tokenString == "" {
 		c.AbortWithStatus(http.StatusUnauthorized)
 	}
 
