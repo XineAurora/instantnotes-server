@@ -52,6 +52,7 @@ func New() *Handler {
 		folderManipulation.GET("/content/:id", h.RequireAuth, h.RequireFolderPremisson, h.ReadFolderContent)
 		folderManipulation.PUT("/:id", h.RequireAuth, h.RequireFolderPremisson, h.UpdateFolder)
 		folderManipulation.DELETE("/:id", h.RequireAuth, h.RequireFolderPremisson, h.DeleteFolder)
+		folderManipulation.GET("/parent/:id", h.RequireAuth, h.RequireFolderPremisson, h.GetFolderParent)
 	}
 
 	groupManipulation := router.Group("/group")

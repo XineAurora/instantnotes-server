@@ -63,6 +63,23 @@ func (h *Handler) ReadFolder(c *gin.Context) {
 	})
 }
 
+func (h *Handler) GetFolderParent(c *gin.Context) {
+	id := c.Param("id")
+
+	var folderLink models.FolderLink
+
+	res := h.DB.Where("child_folder_id = ?", id).First(&folderLink)
+	if res.Error != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"folderLink": models.FolderLink{},
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"folderLink": folderLink,
+	})
+}
+
 func (h *Handler) UpdateFolder(c *gin.Context) {
 	//TODO: Add change parent folder
 	id := c.Param("id")
