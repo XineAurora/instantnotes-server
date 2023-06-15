@@ -14,8 +14,9 @@ func (h *Handler) CreateFolder(c *gin.Context) {
 	//get request body
 	//TODO: Add parent param
 	var body struct {
-		Name    string
-		GroupID uint
+		Name     string
+		GroupID  uint
+		ParentID uint
 	}
 
 	err := c.Bind(&body)
@@ -23,25 +24,42 @@ func (h *Handler) CreateFolder(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{})
 		return
 	}
-	var gid *uint
-	if body.GroupID == 0 {
-		gid = nil
-	} else {
-		gid = &body.GroupID
-	}
-	//TODO add check if user are in group
 
-	//create folder
 	currentUser, exist := c.Get("user")
 	if !exist {
 		c.JSON(http.StatusInternalServerError, gin.H{})
 		return
 	}
+
+	var gid *uint
+	if body.GroupID == 0 {
+		gid = nil
+	} else {
+		//check if user are in group
+		var count int64
+		h.DB.Model(&models.GroupMember{}).
+			Where("user_id = ? AND group_id = ?", currentUser.(models.User).ID, body.GroupID).
+			Count(&count)
+		if count != 1 {
+			c.JSON(http.StatusBadRequest, gin.H{})
+			return
+		}
+		gid = &body.GroupID
+	}
+	//create folder
 	folder := models.Folder{Name: body.Name, UserID: currentUser.(models.User).ID, GroupID: gid}
 
 	res := h.DB.Create(&folder)
 	if res.Error != nil {
 		c.Status(http.StatusInternalServerError)
+		return
+	}
+	//if parent folder isn't 0 create link
+	folderLink := models.FolderLink{ParentFolderID: body.ParentID, ChildFolderID: folder.ID}
+	res = h.DB.Create(&folderLink)
+	if res.Error != nil {
+		h.DB.Delete(&folder)
+		c.Status(http.StatusBadRequest)
 		return
 	}
 	//return folder
@@ -154,22 +172,29 @@ func (h *Handler) ReadFolderContent(c *gin.Context) {
 func getFolderContent(folderID uint, userID uint, tx *gorm.DB) ([]models.Note, []models.Folder, error) {
 	var notes []models.Note
 	var folders []models.Folder
+	var groupFolders []models.Folder
 
 	if folderID == 0 {
 		//find notes
 		if tx.Where("folder_id IS NULL AND user_id = ?", userID).Find(&notes).Error != nil {
 			return nil, nil, errors.New("db error")
 		}
-		//find inner folders
-		if tx.Table("folders").
-			Joins("LEFT JOIN folder_links ON folder_links.child_folder_id = folders.id").
-			Where("folders.user_id = ?", userID).
-			Where("NOT EXISTS (SELECT 1 FROM folder_links fl WHERE fl.child_folder_id = folders.id)").
-			Where("folder_links.parent_folder_id IS NULL").
+		//find folders without parent
+		if tx.Joins("LEFT JOIN folder_links ON folders.id = folder_links.child_folder_id").
+			Where("folder_links.parent_folder_id IS NULL AND folders.group_id IS NULL").
 			Find(&folders).
 			Error != nil {
 			return nil, nil, errors.New("db error")
 		}
+		//find group folders without parent
+		if tx.Joins("LEFT JOIN folder_links ON folder_links.child_folder_id = folders.id").
+			Where("group_members.user_id = ? AND folder_links.child_folder_id IS NULL", userID).
+			Joins("JOIN group_members ON folders.group_id = group_members.group_id").
+			Find(&groupFolders).
+			Error != nil {
+			return nil, nil, errors.New("db error")
+		}
+		folders = append(folders, groupFolders...)
 	} else {
 		//find notes
 		if tx.Where("folder_id=?", folderID).Find(&notes).Error != nil {
