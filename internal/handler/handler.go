@@ -58,6 +58,8 @@ func New() *Handler {
 	groupManipulation := router.Group("/group")
 	{
 		groupManipulation.POST("/", h.RequireAuth, h.CreateGroup)
+		groupManipulation.GET("/:id", h.RequireAuth, h.RequireMembership, h.GetGroup)
+		groupManipulation.GET("/all", h.RequireAuth, h.GetAllGroups)
 		groupManipulation.GET("/members/:id", h.RequireAuth, h.RequireMembership, h.GetGroupMembers)
 		groupManipulation.POST("/member/:id", h.RequireAuth, h.RequireGroupOwn, h.AddGroupMember)
 		groupManipulation.DELETE("/member/:id", h.RequireAuth, h.RequireGroupOwnOrSelf, h.RemoveGroupMember)

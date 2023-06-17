@@ -43,6 +43,39 @@ func (h *Handler) CreateGroup(c *gin.Context) {
 	})
 }
 
+func (h *Handler) GetGroup(c *gin.Context) {
+	id := c.Param("id")
+	var group models.Group
+	res := h.DB.First(&group, id)
+	if res.Error != nil {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+	c.JSON(http.StatusOK, group)
+}
+
+func (h *Handler) GetAllGroups(c *gin.Context) {
+	//get user id
+	user, exist := c.Get("user")
+	if !exist {
+		c.JSON(http.StatusInternalServerError, gin.H{})
+		return
+	}
+	// find all groups
+	var groups []models.Group
+	if h.DB.
+		Joins("INNER JOIN group_members ON groups.id = group_members.group_id").
+		Joins("INNER JOIN users ON group_members.user_id = users.id").
+		Where("users.id = ?", user.(models.User).ID).
+		Find(&groups).
+		Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{})
+		return
+	}
+	//response with them
+	c.JSON(http.StatusOK, &groups)
+}
+
 func (h *Handler) GetGroupMembers(c *gin.Context) {
 	//get group id from request params
 	idStr := c.Param("id")
