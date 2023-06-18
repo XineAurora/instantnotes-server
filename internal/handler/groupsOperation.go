@@ -139,16 +139,13 @@ func (h *Handler) AddGroupMember(c *gin.Context) {
 
 func (h *Handler) RemoveGroupMember(c *gin.Context) {
 	//get userID from body and groupID from params
-	groupID, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.Status(http.StatusBadRequest)
-		return
-	}
+	groupID := c.Param("id")
 
 	var body struct {
 		UserID uint
 	}
-	err = c.Bind(&body)
+	err := c.Bind(&body)
+
 	if err != nil {
 		c.Status(http.StatusBadRequest)
 		return
@@ -166,6 +163,7 @@ func (h *Handler) RemoveGroupMember(c *gin.Context) {
 
 	if count == 0 {
 		c.Status(http.StatusBadRequest)
+		return
 	}
 	//remove user from group
 	res = h.DB.Where("group_id = ? AND user_id = ?", groupID, body.UserID).Delete(&models.GroupMember{})
